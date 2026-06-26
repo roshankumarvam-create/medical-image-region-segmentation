@@ -90,4 +90,4 @@ A transformer-augmented encoder-decoder tuned to run under tight memory.
 
 This is an early but disciplined attempt at the most expensive step in a large imaging program, the manual annotation bottleneck. The aim is a working human-in-the-loop assist that turns hours of expert tracing into minutes of review. The approach is what an applied team wants to see in an in-progress effort: a controlled architecture comparison, explicit handling of the long-tail that breaks naive segmenters, reproducible training, and honest baselines (current best mIoU 0.717) on a clear trajectory of improvement.
 
-<sub>Code and trained weights are private under institutional agreements. A technical walkthrough is available on request.</sub>
+<sub>Code and trained weights are private under institutional agreements. 
