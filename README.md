@@ -4,20 +4,24 @@
   <img src="https://img.shields.io/badge/Task-Multi--class%20Region%20Segmentation-1565C0?style=flat-square">
   <img src="https://img.shields.io/badge/Scale-Whole%20Brain%20(serial%20sections)-7B1FA2?style=flat-square">
   <img src="https://img.shields.io/badge/Models-Mask2Former%20%7C%20Attn--UNet%20%7C%20DeepLabV3%2B-EE4C2C?style=flat-square">
-  <img src="https://img.shields.io/badge/Best%20mIoU-0.717-2E7D32?style=flat-square">
-  <img src="https://img.shields.io/badge/Output-GeoJSON%20%2B%20OpenSeadragon-009688?style=flat-square">
+  <img src="https://img.shields.io/badge/Status-Active%20R%26D%20(in%20progress)-F9A825?style=flat-square">
+  <img src="https://img.shields.io/badge/Current%20best%20mIoU-0.717%20%E2%86%97-2E7D32?style=flat-square">
   <img src="https://img.shields.io/badge/code-private%20(institutional%20IP)-555?style=flat-square">
 </p>
 
-> Built at the **Sudha Gopalakrishnan Brain Centre, IIT Madras**, on serial whole-brain histology. This repo documents the method, the model-selection study, and results; source is held under institutional IP.
+> Built at the **Sudha Gopalakrishnan Brain Centre, IIT Madras**, on serial whole-brain histology. This repo documents the method and an in-progress model-selection study; source is held under institutional IP.
+
+> **⚠️ Status — work in progress.** The goal here is the *workflow*, not a finished model. Current models already produce usable first-pass region proposals; accuracy is actively being improved (more annotated data, better long-tail handling, post-processing). The numbers below are **current baselines on the path up**, not final results.
 
 ---
 
-## Problem & impact
+## The goal: cut the manual annotation burden
 
-A single brain in the archive is reconstructed from **~10,000 serial sections**, and every section has to be partitioned into anatomical regions (cortical plate, white matter, sub-plate, ventricular zones, and many finer structures) for atlas building and 3D reconstruction. Done by hand, this is the **bottleneck of the entire brain-mapping program**: it is slow, expensive, and boundaries drift between annotators.
+A single brain in the archive is reconstructed from **~10,000 serial sections**, and every section has to be partitioned into anatomical regions (cortical plate, white matter, sub-plate, ventricular zones, and many finer structures). Done by hand, this is the **single most labor-intensive step** in the brain-mapping program — slow, costly in expert hours, and inconsistent between annotators.
 
-The product goal is not "a model that segments" — it is **throughput**: turn annotation from *draw-everything* into *review-and-adjust*, with consistent boundaries and measurable quality, at archive resolution. That reframing drives every decision below.
+**The primary objective of this project is to reduce that manual labor, time, and effort.** Instead of an expert drawing every region boundary from scratch on every section, the model produces a first-pass region map the expert only has to **review and adjust** — converting hours of manual tracing per section into minutes of correction. Raw accuracy is secondary to that workflow win: even an imperfect model that gets the expert 80% of the way there is a large net time saving across thousands of sections.
+
+That framing — **labor saved, not leaderboard score** — is the lens for everything below, and it's why this is shipped as a human-in-the-loop assist rather than a fully autonomous segmenter.
 
 ## System overview
 
@@ -25,9 +29,9 @@ The product goal is not "a model that segments" — it is **throughput**: turn a
 
 A section is preprocessed, a region model predicts a dense multi-class map, the raster map is vectorized to polygons and exported as **GeoJSON**, and a neuroanatomist refines the proposal in an **OpenSeadragon** deep-zoom viewer. The reviewed regions feed the centre's downstream **3D reconstruction** pipeline.
 
-## Model-selection study
+## Model-selection study *(ongoing)*
 
-Rather than commit to one architecture, three strong segmentation families were trained on the **same task and data splits** and compared on mean IoU, per-class IoU, and rare-region behaviour. This is the part a research org cares about most: a defensible, measured choice — not a single lucky run.
+Rather than commit to one architecture early, three strong segmentation families are being trained on the **same task and data splits** and compared on mean IoU, per-class IoU, and rare-region behaviour. This is the disciplined part: a defensible, measured direction — not a single lucky run — and an honest baseline to improve against. The exploration is still active; results below reflect the current iteration.
 
 ![Three architectures benchmarked](./assets/model-benchmark.svg)
 
@@ -37,7 +41,7 @@ Rather than commit to one architecture, three strong segmentation families were 
 | **2 · Attention U-Net** *(+ ASPP + curriculum)* | Attention-gated U-Net + ASPP | 512² | Weighted Dice + Weighted CE | **IoU 0.592** |
 | **3 · DeepLabV3+** *(+ curriculum)* | ResNet50V2 (ImageNet) + ASPP | 512² | Weighted Dice + Weighted CE | **IoU 0.717 — best** |
 
-**Takeaway:** transfer learning from an ImageNet-pretrained ResNet50V2 backbone (Model 3), combined with curriculum learning and multi-scale ASPP context, gave the most accurate and stable region maps. The transformer model (Model 1) was engineered primarily to make attention-based segmentation **fit in constrained GPU memory**, and the attention-U-Net (Model 2) was the mid-point that validated the curriculum + class-balancing strategy before scaling the backbone.
+**Takeaway so far:** transfer learning from an ImageNet-pretrained ResNet50V2 backbone (Model 3), with curriculum learning and multi-scale ASPP context, currently gives the most stable region maps — and, importantly, ones that are **already good enough to seed expert review** rather than redrawing from scratch. The transformer model (Model 1) was engineered primarily to make attention-based segmentation **fit in constrained GPU memory**, and the attention-U-Net (Model 2) validated the curriculum + class-balancing strategy. These are working baselines; the next iterations target higher accuracy on rare regions.
 
 ---
 
@@ -91,9 +95,16 @@ A transformer-augmented encoder–decoder tuned to run under tight memory.
 
 `PyTorch / TensorFlow-Keras` · `Mask2Former · Attention U-Net · DeepLabV3+ (ResNet50V2)` · `ASPP` · `mixed precision` · `shapely / GeoJSON` · `OpenSeadragon` · `FastAPI`
 
+## Roadmap — what's next
+
+- **More annotated sections** to lift accuracy, especially on rare/fine regions.
+- **Better long-tail handling** beyond oversampling (e.g. boundary-aware and region-aware losses).
+- **Post-processing** — CRF / morphological cleanup and polygon smoothing for cleaner editable boundaries.
+- **Quantify the time saved** — measure expert minutes-per-section *with vs. without* the assist, the metric that actually matters for this project.
+
 ## Why it matters
 
-This is the annotation-infrastructure layer beneath an entire brain-mapping program, and it is presented the way a product research team would defend a model choice: **a controlled three-way benchmark**, explicit handling of the long-tail that breaks naive segmenters, reproducible training, and a deployment that respects how domain experts actually work. The best model reaches **IoU 0.717**, and the study shows *why* — pretrained backbone + curriculum + multi-scale context — which is what makes the result trustworthy enough to build on.
+This is an early but disciplined attempt at the most expensive step in a brain-mapping program: **the manual annotation bottleneck**. The aim isn't a state-of-the-art leaderboard number — it's a working **human-in-the-loop assist** that turns hours of expert tracing into minutes of review. The engineering approach is what a product/research team would want to see in an in-progress effort: a controlled architecture comparison, explicit handling of the long-tail that breaks naive segmenters, reproducible training, and honest baselines (current best **mIoU 0.717**) on a clear trajectory of improvement.
 
 ---
 
